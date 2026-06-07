@@ -10,6 +10,8 @@ export type ShipState = {
 export type SimMode = "manual" | "dp";
 
 export type SimSettings = {
+  simpleMode: boolean;       // true = simplified physics, false = advanced
+  screenLayout: "desktop" | "pi"; // ui layout target
   windX: number;
   windY: number;
   linearDrag: number;   // 0–1, multiplied each tick (e.g. 0.98)
@@ -50,6 +52,8 @@ export const state = {
   } as DPSetpoint,
 
   settings: {
+    simpleMode: true,
+    screenLayout: "desktop" as "desktop" | "pi",
     windX: 0.008,
     windY: 0.004,
     linearDrag: 0.97,

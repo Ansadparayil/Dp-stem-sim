@@ -142,14 +142,31 @@ const SLIDERS: SliderDef[] = [
   },
 ];
 
+// Simple mode only exposes these two sliders
+const SIMPLE_KEYS: Array<keyof typeof state.settings> = ["windX", "windY"];
+
 export default function SettingsPage() {
   const [vals, setVals] = useState({ ...state.settings });
   const [presetName, setPresetName] = useState<keyof typeof VESSEL_PRESETS | "Custom">("Custom");
+  const [isSimple, setIsSimple] = useState(state.settings.simpleMode);
+  const [layout, setLayout] = useState(state.settings.screenLayout);
 
   function handleChange(key: keyof typeof state.settings, v: number) {
     state.settings[key] = v as never;
     setVals({ ...state.settings });
     setPresetName("Custom");
+  }
+
+  function toggleSimpleMode() {
+    const next = !state.settings.simpleMode;
+    state.settings.simpleMode = next;
+    setIsSimple(next);
+    setVals({ ...state.settings });
+  }
+
+  function applyLayout(next: "desktop" | "pi") {
+    state.settings.screenLayout = next;
+    setLayout(next);
   }
 
   function applyPreset(name: keyof typeof VESSEL_PRESETS) {
@@ -160,6 +177,7 @@ export default function SettingsPage() {
 
   function resetDefaults() {
     const defaults = {
+      simpleMode: true,
       windX: 0.008,
       windY: 0.004,
       linearDrag: 0.97,
@@ -170,7 +188,9 @@ export default function SettingsPage() {
       thrusterRampRate: 45,
     };
     Object.assign(state.settings, defaults);
-    setVals({ ...defaults });
+    setVals({ ...state.settings });
+    setIsSimple(true);
+    setLayout("desktop");
     setPresetName("Custom");
   }
 
@@ -216,33 +236,103 @@ export default function SettingsPage() {
         </div>
       </div>
 
+      {/* Layout selector */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "0.75rem", alignItems: "center" }}>
+        <span style={{ fontSize: "0.6rem", letterSpacing: "0.2em", color: "#2a5a7a", marginRight: "0.25rem" }}>SCREEN</span>
+        {(["desktop", "pi"] as const).map((opt) => {
+          const active = layout === opt;
+          const label = opt === "desktop" ? "DESKTOP" : "PI 7\"";
+          return (
+            <button
+              key={opt}
+              onClick={() => applyLayout(opt)}
+              style={{
+                padding: "0.3rem 0.9rem",
+                border: `1px solid ${active ? "#7fff7f" : "rgba(0,212,255,0.2)"}`,
+                background: active ? "rgba(127,255,127,0.1)" : "transparent",
+                color: active ? "#7fff7f" : "#2a5a7a",
+                fontFamily: "inherit",
+                fontSize: "0.62rem",
+                fontWeight: active ? 700 : 400,
+                letterSpacing: "0.18em",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <span style={{ fontSize: "0.58rem", color: "#1a3a5c", marginLeft: "0.5rem" }}>
+          {layout === "pi" ? "Optimised for Pi 7\" 800\u00d7480" : "Full desktop layout"}
+        </span>
+      </div>
+
+      {/* Simple / Advanced toggle */}
+      <div
+        style={{
+          display: "flex",
+          gap: "0.5rem",
+          marginBottom: "1.25rem",
+        }}
+      >
+        {(["SIMPLE", "ADVANCED"] as const).map((label) => {
+          const active = label === "SIMPLE" ? isSimple : !isSimple;
+          return (
+            <button
+              key={label}
+              onClick={toggleSimpleMode}
+              style={{
+                padding: "0.4rem 1.2rem",
+                border: `1px solid ${active ? "#00d4ff" : "rgba(0,212,255,0.2)"}`,
+                background: active ? "rgba(0,212,255,0.12)" : "transparent",
+                color: active ? "#00d4ff" : "#2a5a7a",
+                fontFamily: "inherit",
+                fontSize: "0.65rem",
+                fontWeight: active ? 700 : 400,
+                letterSpacing: "0.2em",
+                cursor: "pointer",
+              }}
+            >
+              {label}
+            </button>
+          );
+        })}
+        <span style={{ fontSize: "0.58rem", color: "#1a3a5c", alignSelf: "center", marginLeft: "0.5rem" }}>
+          {isSimple
+            ? "Clean DP simulation — stable, no oscillation"
+            : "Full physics with mass, inertia and thruster ramp"}
+        </span>
+      </div>
+
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
         {/* Sliders */}
         <div style={{ flex: "1 1 360px", maxWidth: 520 }}>
-          <div
-            style={{
-              border: "1px solid rgba(0,212,255,0.1)",
-              borderLeft: "2px solid #ffce6b60",
-              padding: "1rem 1.25rem",
-              background: "rgba(0,20,40,0.4)",
-              marginBottom: "0.75rem",
-            }}
-          >
+          {/* Vessel preset — only relevant in advanced mode */}
+          {!isSimple && (
             <div
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                marginBottom: "0.5rem",
+                border: "1px solid rgba(0,212,255,0.1)",
+                borderLeft: "2px solid #ffce6b60",
+                padding: "1rem 1.25rem",
+                background: "rgba(0,20,40,0.4)",
+                marginBottom: "0.75rem",
               }}
             >
-              <span style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: "#4a7fa0" }}>
-                VESSEL PRESET
-              </span>
-              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#ffce6b" }}>
-                {presetName}
-              </span>
-            </div>
-            <select
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  marginBottom: "0.5rem",
+                }}
+              >
+                <span style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: "#4a7fa0" }}>
+                  VESSEL PRESET
+                </span>
+                <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#ffce6b" }}>
+                  {presetName}
+                </span>
+              </div>
+              <select
               value={presetName}
               onChange={(e) => {
                 const nextPreset = e.target.value as keyof typeof VESSEL_PRESETS | "Custom";
@@ -280,8 +370,10 @@ export default function SettingsPage() {
               Presets update vessel dynamics for realistic size and response.
             </div>
           </div>
+          )}
 
-          {SLIDERS.map(({ key, label, min, max, step, unit, description, color }) => (
+          {/* In simple mode show only the two wind sliders; advanced shows all */}
+          {SLIDERS.filter(({ key }) => !isSimple || SIMPLE_KEYS.includes(key)).map(({ key, label, min, max, step, unit, description, color }) => (
             <div
               key={key}
               style={{
@@ -303,7 +395,7 @@ export default function SettingsPage() {
                   {label}
                 </span>
                 <span style={{ fontSize: "0.85rem", fontWeight: 700, color }}>
-                  {vals[key].toFixed(step < 0.01 ? 3 : step < 1 ? 2 : 0)}
+                  {(vals[key] as number).toFixed(step < 0.01 ? 3 : step < 1 ? 2 : 0)}
                   <span style={{ fontSize: "0.6rem", color: "#2a5a7a", marginLeft: 4 }}>{unit}</span>
                 </span>
               </div>
@@ -313,7 +405,7 @@ export default function SettingsPage() {
                 min={min}
                 max={max}
                 step={step}
-                value={vals[key]}
+                value={vals[key] as number}
                 onChange={(e) => handleChange(key, Number(e.target.value))}
                 style={{ width: "100%", accentColor: color, cursor: "pointer" }}
               />

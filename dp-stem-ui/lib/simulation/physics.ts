@@ -140,55 +140,69 @@ export function stepPhysics(dt: number) {
     state.control.right = Math.round(cmdThrustR * 100);
   }
 
-  // ─── TIME-DELTA THRUSTER SPOOLING ─────────────────────────────────────────
-  const rampPerSecond = Math.max(1, cfg.thrusterRampRate) / 100;
-  const maxRampStep = rampPerSecond * dt;
-  spooledThrustL = moveToward(spooledThrustL, cmdThrustL, maxRampStep);
-  spooledThrustR = moveToward(spooledThrustR, cmdThrustR, maxRampStep);
+  if (cfg.simpleMode) {
+    // ── SIMPLE PHYSICS ────────────────────────────────────────────────────────
+    // Instant thrust, strong per-tick drag — stable DP with no oscillation.
+    const totalThrust = (cmdThrustL + cmdThrustR) * 0.5;
+    const torque      = (cmdThrustR - cmdThrustL);
 
-  dpDebug.thrustL = spooledThrustL;
-  dpDebug.thrustR = spooledThrustR;
+    const fx = Math.cos(s.heading) * totalThrust * 0.18;
+    const fy = Math.sin(s.heading) * totalThrust * 0.18;
 
-  // ─── FORCE & ACCELERATION CALCULATION ─────────────────────────────────────
-  const totalThrust = (spooledThrustL + spooledThrustR) * 0.5;
-  const torque      = (spooledThrustR - spooledThrustL) * cfg.thrusterSpan * 0.5;
+    // Strong drag (0.88) kills overshoot; wind added as constant bias
+    s.vx = s.vx * 0.88 + fx + cfg.windX * 0.4;
+    s.vy = s.vy * 0.88 + fy + cfg.windY * 0.4;
+    s.x += s.vx;
+    s.y += s.vy;
 
-  // Boosted thrust scale to perfectly offset mass scaling in pixel space
-  const fxThrust = Math.cos(s.heading) * totalThrust * (cfg.thrustScale * 150000);
-  const fyThrust = Math.sin(s.heading) * totalThrust * (cfg.thrustScale * 150000);
-  const torqueThrusters = torque * 800;
+    s.omega   = s.omega * 0.80 + torque * 0.020;
+    s.heading = wrapAngle(s.heading + s.omega);
 
-  // Wind forces scaled appropriately to match new thrust constraints
-  const fxWind = cfg.windX * 80000;
-  const fyWind = cfg.windY * 80000;
+    dpDebug.thrustL = cmdThrustL;
+    dpDebug.thrustR = cmdThrustR;
 
-  const totalFx = fxThrust + fxWind;
-  const totalFy = fyThrust + fyWind;
+    state.telemetry.speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+    state.telemetry.rpm   = Math.abs(totalThrust) * 1800;
 
-  // True physical integration: a = F / m
-  const ax = totalFx / cfg.mass;
-  const ay = totalFy / cfg.mass;
+  } else {
+    // ── ADVANCED PHYSICS ──────────────────────────────────────────────────────
+    // Time-delta thruster spooling
+    const rampPerSecond = Math.max(1, cfg.thrusterRampRate) / 100;
+    const maxRampStep = rampPerSecond * dt;
+    spooledThrustL = moveToward(spooledThrustL, cmdThrustL, maxRampStep);
+    spooledThrustR = moveToward(spooledThrustR, cmdThrustR, maxRampStep);
 
-  // Rotational inertia calculation (Moment of Inertia)
-  const yawInertia = (1 / 12) * cfg.mass * (cfg.thrusterSpan * cfg.thrusterSpan);
-  const alpha = torqueThrusters / yawInertia; 
+    dpDebug.thrustL = spooledThrustL;
+    dpDebug.thrustR = spooledThrustR;
 
-  // ─── TIME-DELTA VELOCITY & DRAG INTEGRATION ───────────────────────────────
-  // Adjusted drag scaling so it applies consistently across variable frame rates
-  const linearDragCoeff = (1 - cfg.linearDrag) * 15;   
-  const angularDragCoeff = (1 - cfg.angularDrag) * 15; 
+    const totalThrust = (spooledThrustL + spooledThrustR) * 0.5;
+    const torque      = (spooledThrustR - spooledThrustL) * cfg.thrusterSpan * 0.5;
 
-  // Update velocities over dt
-  s.vx += (ax - s.vx * linearDragCoeff) * dt;
-  s.vy += (ay - s.vy * linearDragCoeff) * dt;
-  s.omega += (alpha - s.omega * angularDragCoeff) * dt;
+    const fxThrust = Math.cos(s.heading) * totalThrust * (cfg.thrustScale * 150000);
+    const fyThrust = Math.sin(s.heading) * totalThrust * (cfg.thrustScale * 150000);
+    const torqueThrusters = torque * 800;
 
-  // ─── POSITION INTEGRATION ──────────────────────────────────────────────────
-  s.x += s.vx * dt * 60; 
-  s.y += s.vy * dt * 60;
-  s.heading = wrapAngle(s.heading + s.omega * dt * 60);
+    const totalFx = fxThrust + cfg.windX * 80000;
+    const totalFy = fyThrust + cfg.windY * 80000;
 
-  // ─── TELEMETRY ────────────────────────────────────────────────────────────
-  state.telemetry.speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
-  state.telemetry.rpm   = Math.abs(totalThrust) * 1800;
+    const ax = totalFx / cfg.mass;
+    const ay = totalFy / cfg.mass;
+
+    const yawInertia = (1 / 12) * cfg.mass * (cfg.thrusterSpan * cfg.thrusterSpan);
+    const alpha = torqueThrusters / yawInertia;
+
+    const linearDragCoeff  = (1 - cfg.linearDrag) * 15;
+    const angularDragCoeff = (1 - cfg.angularDrag) * 15;
+
+    s.vx    += (ax - s.vx * linearDragCoeff) * dt;
+    s.vy    += (ay - s.vy * linearDragCoeff) * dt;
+    s.omega += (alpha - s.omega * angularDragCoeff) * dt;
+
+    s.x       += s.vx * dt * 60;
+    s.y       += s.vy * dt * 60;
+    s.heading  = wrapAngle(s.heading + s.omega * dt * 60);
+
+    state.telemetry.speed = Math.sqrt(s.vx * s.vx + s.vy * s.vy);
+    state.telemetry.rpm   = Math.abs(totalThrust) * 1800;
+  }
 }

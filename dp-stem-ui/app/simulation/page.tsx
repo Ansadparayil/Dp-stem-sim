@@ -20,12 +20,22 @@ export default function SimulationPage() {
   });
   const [showDebug, setShowDebug] = useState(true);
   const [currentMode, setCurrentMode] = useState(state.mode);
+  const [screenLayout, setScreenLayout] = useState(state.settings.screenLayout);
+
+  // Pi 7" (800×480) — scale the 800×680 canvas to fit, leaving room for the top bar.
+  // scale = 420 / 680 ≈ 0.617; round to 0.62 for a clean fit.
+  const isCompact = screenLayout === "pi";
+  const canvasScale = isCompact ? 0.62 : 1.0;
+  const scaledW = Math.round(CANVAS_W * canvasScale);
+  const scaledH = Math.round(CANVAS_H * canvasScale);
 
   // ── Click canvas → set DP target ──────────────────────────────────────────
   function handleCanvasClick(e: React.MouseEvent<HTMLCanvasElement>) {
     const rect = (e.target as HTMLCanvasElement).getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
+    // getBoundingClientRect returns scaled (CSS) coords; divide by canvasScale
+    // to convert back to canvas world coordinates.
+    const x = (e.clientX - rect.left) / canvasScale;
+    const y = (e.clientY - rect.top) / canvasScale;
     state.dp.x = x;
     state.dp.y = y;
     // Store the current heading as the hold heading
@@ -440,18 +450,22 @@ export default function SimulationPage() {
       background: "#050d18",
       fontFamily: "'JetBrains Mono','Courier New',monospace",
       color: "#c8dff5",
-      padding: "1rem",
+      padding: isCompact ? "0.4rem" : "1rem",
+      overflow: isCompact ? "hidden" : undefined,
     }}>
       {/* Top bar */}
       <div style={{
         display: "flex", justifyContent: "space-between", alignItems: "center",
-        marginBottom: "0.75rem", paddingBottom: "0.6rem",
+        marginBottom: isCompact ? "0.35rem" : "0.75rem",
+        paddingBottom: isCompact ? "0.3rem" : "0.6rem",
         borderBottom: "1px solid rgba(0,212,255,0.15)",
       }}>
-        <div>
-          <span style={{ fontSize:"0.6rem", letterSpacing:"0.3em", color:"#00d4ff" }}>DP-STEM-SIM · </span>
-          <span style={{ fontSize:"0.9rem", fontWeight:700, color:"#fff" }}>Simulation</span>
-        </div>
+        {!isCompact && (
+          <div>
+            <span style={{ fontSize:"0.6rem", letterSpacing:"0.3em", color:"#00d4ff" }}>DP-STEM-SIM · </span>
+            <span style={{ fontSize:"0.9rem", fontWeight:700, color:"#fff" }}>Simulation</span>
+          </div>
+        )}
         <div style={{ display:"flex", gap:"1rem", alignItems:"center", fontSize:"0.7rem" }}>
           {/* Mode toggle */}
           <button onClick={toggleMode} style={{
@@ -474,15 +488,16 @@ export default function SimulationPage() {
           }}>
             DEBUG
           </button>
-          <Link href="/control"  style={{ color:"#ffa500", textDecoration:"none" }}>◈ Control</Link>
+          {!isCompact && <Link href="/control"  style={{ color:"#ffa500", textDecoration:"none" }}>◈ Control</Link>}
           <Link href="/settings" style={{ color:"#7fff7f", textDecoration:"none" }}>◎ Settings</Link>
-          <Link href="/"         style={{ color:"#4a7fa0", textDecoration:"none" }}>← Home</Link>
+          {!isCompact && <Link href="/"         style={{ color:"#4a7fa0", textDecoration:"none" }}>← Home</Link>}
         </div>
       </div>
 
       <div style={{ display:"flex", gap:"1rem", flexWrap:"wrap" }}>
-        {/* Canvas */}
-        <div style={{ position:"relative", flexShrink:0 }}>
+        {/* Canvas — wrapped in a div sized to the scaled visual footprint so
+            surrounding layout doesn't see the unscaled 800×680 element */}
+        <div style={{ position:"relative", flexShrink:0, width: scaledW, height: scaledH, overflow:"hidden" }}>
           <canvas
             ref={canvasRef}
             width={CANVAS_W}
@@ -492,6 +507,8 @@ export default function SimulationPage() {
               border: "1px solid rgba(0,212,255,0.2)",
               cursor: currentMode === "dp" ? "crosshair" : "default",
               display: "block",
+              transformOrigin: "top left",
+              transform: `scale(${canvasScale})`,
             }}
           />
           {currentMode === "dp" && (
@@ -505,7 +522,8 @@ export default function SimulationPage() {
           )}
         </div>
 
-        {/* Side panel */}
+        {/* Side panel — hidden in Pi/compact layout; all data visible in canvas HUD */}
+        {!isCompact && (
         <div style={{ display:"flex", flexDirection:"column", gap:"0.65rem", minWidth:160 }}>
           {/* Telemetry tiles */}
           {[
@@ -587,6 +605,7 @@ export default function SimulationPage() {
             <div>WIND Y: <span style={{color:"#c8dff5"}}>{state.settings.windY.toFixed(3)}</span></div>
           </div>
         </div>
+        )}
       </div>
     </main>
   );
