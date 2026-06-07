@@ -15,6 +15,50 @@ type SliderDef = {
   color: string;
 };
 
+type VesselPreset = {
+  mass: number;
+  thrusterRampRate: number;
+  thrustScale: number;
+  thrusterSpan: number;
+  linearDrag: number;
+  angularDrag: number;
+};
+
+const VESSEL_PRESETS: Record<"RIB" | "Patrol Boat" | "PSV" | "Drillship", VesselPreset> = {
+  RIB: {
+    mass: 2500,
+    thrusterRampRate: 85,
+    thrustScale: 0.22,
+    thrusterSpan: 12,
+    linearDrag: 0.95,
+    angularDrag: 0.8,
+  },
+  "Patrol Boat": {
+    mass: 8000,
+    thrusterRampRate: 50,
+    thrustScale: 0.16,
+    thrusterSpan: 18,
+    linearDrag: 0.965,
+    angularDrag: 0.84,
+  },
+  PSV: {
+    mass: 22000,
+    thrusterRampRate: 28,
+    thrustScale: 0.12,
+    thrusterSpan: 24,
+    linearDrag: 0.975,
+    angularDrag: 0.87,
+  },
+  Drillship: {
+    mass: 50000,
+    thrusterRampRate: 12,
+    thrustScale: 0.09,
+    thrusterSpan: 34,
+    linearDrag: 0.985,
+    angularDrag: 0.91,
+  },
+};
+
 const SLIDERS: SliderDef[] = [
   {
     key: "windX",
@@ -57,6 +101,26 @@ const SLIDERS: SliderDef[] = [
     color: "#7fff7f",
   },
   {
+    key: "mass",
+    label: "VESSEL MASS",
+    min: 100,
+    max: 50000,
+    step: 100,
+    unit: "kg",
+    description: "Vessel inertia. Higher mass means slower acceleration.",
+    color: "#ffce6b",
+  },
+  {
+    key: "thrusterRampRate",
+    label: "THRUSTER RAMP SPEED",
+    min: 5,
+    max: 120,
+    step: 1,
+    unit: "%/s",
+    description: "How fast thrust can change. Lower = gentler spool up/down.",
+    color: "#ffce6b",
+  },
+  {
     key: "thrustScale",
     label: "THRUST SCALE",
     min: 0.01,
@@ -80,10 +144,18 @@ const SLIDERS: SliderDef[] = [
 
 export default function SettingsPage() {
   const [vals, setVals] = useState({ ...state.settings });
+  const [presetName, setPresetName] = useState<keyof typeof VESSEL_PRESETS | "Custom">("Custom");
 
   function handleChange(key: keyof typeof state.settings, v: number) {
     state.settings[key] = v as never;
     setVals({ ...state.settings });
+    setPresetName("Custom");
+  }
+
+  function applyPreset(name: keyof typeof VESSEL_PRESETS) {
+    Object.assign(state.settings, VESSEL_PRESETS[name]);
+    setVals({ ...state.settings });
+    setPresetName(name);
   }
 
   function resetDefaults() {
@@ -92,11 +164,14 @@ export default function SettingsPage() {
       windY: 0.004,
       linearDrag: 0.97,
       angularDrag: 0.85,
+      mass: 9000,
       thrustScale: 0.12,
       thrusterSpan: 20,
+      thrusterRampRate: 45,
     };
     Object.assign(state.settings, defaults);
     setVals({ ...defaults });
+    setPresetName("Custom");
   }
 
   return (
@@ -144,6 +219,68 @@ export default function SettingsPage() {
       <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
         {/* Sliders */}
         <div style={{ flex: "1 1 360px", maxWidth: 520 }}>
+          <div
+            style={{
+              border: "1px solid rgba(0,212,255,0.1)",
+              borderLeft: "2px solid #ffce6b60",
+              padding: "1rem 1.25rem",
+              background: "rgba(0,20,40,0.4)",
+              marginBottom: "0.75rem",
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginBottom: "0.5rem",
+              }}
+            >
+              <span style={{ fontSize: "0.65rem", letterSpacing: "0.2em", color: "#4a7fa0" }}>
+                VESSEL PRESET
+              </span>
+              <span style={{ fontSize: "0.75rem", fontWeight: 700, color: "#ffce6b" }}>
+                {presetName}
+              </span>
+            </div>
+            <select
+              value={presetName}
+              onChange={(e) => {
+                const nextPreset = e.target.value as keyof typeof VESSEL_PRESETS | "Custom";
+                if (nextPreset === "Custom") {
+                  setPresetName("Custom");
+                  return;
+                }
+                applyPreset(nextPreset);
+              }}
+              style={{
+                width: "100%",
+                background: "rgba(0,15,30,0.95)",
+                color: "#c8dff5",
+                border: "1px solid rgba(255,206,107,0.45)",
+                padding: "0.5rem",
+                fontFamily: "inherit",
+                fontSize: "0.7rem",
+                letterSpacing: "0.12em",
+              }}
+            >
+              <option value="Custom">Custom</option>
+              <option value="RIB">RIB</option>
+              <option value="Patrol Boat">Patrol Boat</option>
+              <option value="PSV">PSV</option>
+              <option value="Drillship">Drillship</option>
+            </select>
+            <div
+              style={{
+                marginTop: "0.4rem",
+                fontSize: "0.58rem",
+                color: "#1a3a5c",
+                letterSpacing: "0.1em",
+              }}
+            >
+              Presets update vessel dynamics for realistic size and response.
+            </div>
+          </div>
+
           {SLIDERS.map(({ key, label, min, max, step, unit, description, color }) => (
             <div
               key={key}

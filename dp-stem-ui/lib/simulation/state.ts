@@ -14,8 +14,10 @@ export type SimSettings = {
   windY: number;
   linearDrag: number;   // 0–1, multiplied each tick (e.g. 0.98)
   angularDrag: number;  // 0–1
+  mass: number;         // kg vessel mass
   thrustScale: number;  // multiplier on thruster force
   thrusterSpan: number; // meters between L/R thrusters (affects torque)
+  thrusterRampRate: number; // %/s how quickly thrusters spool
 };
 
 export type DPSetpoint = {
@@ -52,8 +54,10 @@ export const state = {
     windY: 0.004,
     linearDrag: 0.97,
     angularDrag: 0.85,
+    mass: 9000,
     thrustScale: 0.12,
     thrusterSpan: 20,
+    thrusterRampRate: 45,
   } as SimSettings,
 
   // runtime telemetry (read-only from UI)
